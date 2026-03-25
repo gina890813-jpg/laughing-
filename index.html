@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>錯字搜查隊 - 龍騰一下第三課</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 html2pdf.js 用於生成 PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        /* 載入字體 */
+        @import url('https://fonts.cdnfonts.com/css/iansui');
+        
+        body {
+            font-family: 'Iansui', '標楷體', sans-serif;
+            background: linear-gradient(135deg, #E0F2F1 0%, #B2DFDB 100%);
+            overscroll-behavior: none;
+            -webkit-user-select: none; /* 禁止選取文字，避免誤觸 */
+            user-select: none;
+        }
+
+        /* 遊戲主卡片樣式 */
+        .card {
+            background-color: white;
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            width: 95%;
+            max-width: 850px;
+            border: 4px solid #4DB6AC;
+            max-height: 95vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            position: relative; /* For absolute positioning of settings icon */
+        }
+
+        /* 螢幕切換 */
+        .screen {
+            display: none;
+            width: 100%;
+            height: 100%;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .screen.active {
+            display: flex;
+        }
+
+        /* 按鈕樣式 */
+        .btn {
+            padding: 1rem 1.5rem;
+            border-radius: 16px;
+            font-size: 1.25rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            box-shadow: 0 4px 0px rgba(0, 0, 0, 0.15);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+        }
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 rgba(0, 0, 0, 0.15);
+        }
+        .btn-primary { background-color: #26A69A; color: white; }
+        .btn-secondary { background-color: #CFD8DC; color: #37474F; }
+        .btn-warning { background-color: #FFB74D; color: #5D4037; }
+        .btn-danger { background-color: #EF5350; color: white; }
+        .btn-sm { padding: 0.5rem 1rem; font-size: 1rem; border-radius: 10px; }
+
+        .select-style {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            border: 2px solid #80CBC4;
+            background-color: #F8F8F8;
+            font-size: 1.1rem;
+            height: 3.5rem;
+        }
+
+        /* 選項群組 (Radio Group) */
+        .radio-group {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+        .radio-label {
+            background: #F1F8E9;
+            border: 2px solid #AED581;
+            padding: 1rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex: 1;
+            text-align: center;
+            font-weight: bold;
+            color: #558B2F;
+            position: relative;
+            overflow: hidden;
+        }
+        .radio-label input { display: none; }
+        .radio-label.checked {
+            background: #26A69A;
+            color: white;
+            border-color: #00796B;
+            box-shadow: 0 4px 0 #00695C;
+        }
+        .radio-label:hover:not(.checked) { background: #DCEDC8; }
+
+        /* 遊戲標題與 Header */
+        #gameHeader {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 1rem;
+            min-height: 3rem;
+        }
+        #gameTitle {
+            text-align: center;
+            font-size: 2.2rem;
+            font-weight: bold;
+            color: #00897B;
+            flex: 1;
+        }
+        #livesContainer {
+            display: flex;
+            justify-content: flex-start;
+            visibility: hidden; /* 預設隱藏，闖關模式開啟 */
+            width: 120px;
+        }
+        #livesContainer span { font-size: 2rem; margin-right: 2px; }
+        
+        .menu-btn-container {
+            width: 120px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        #centralInstruction {
+            font-size: 1.2rem;
+            color: #4DB6AC;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            min-height: 1.8rem;
+        }
+
+        /* 詞語挑戰區 */
+        .word-container {
+            background-color: #E8F5E9;
+            border-radius: 16px;
+            padding: 2.5rem 1rem;
+            font-size: 3rem;
+            text-align: center;
+            letter-spacing: 0.15em;
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        .word-placeholder {
+            display: inline-block;
+            min-width: 3rem;
+            border-bottom: 4px solid #4DB6AC;
+            margin: 0 0.2em;
+            color: #4CAF50;
+            font-weight: bold;
+            line-height: 1;
+        }
+        
+        /* 報讀按鈕樣式優化 */
+        .speaker-icon {
+            font-size: 1.5rem; /* 縮小圖示 */
+            width: 2.8rem; /* 固定按鈕大小 */
+            height: 2.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #26A69A;
+            cursor: pointer;
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255,255,255,0.95);
+            border-radius: 50%;
+            border: 2px solid #B2DFDB;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 10;
+            transition: transform 0.1s;
+        }
+        .speaker-icon:active { transform: scale(0.9); }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-top: 1rem;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .option-btn {
+            padding: 1.5rem 0.5rem;
+            font-size: 2rem;
+            border-radius: 16px;
+            background-color: #F1F8E9;
+            border: 3px solid #AED581;
+            color: #33691E;
+            cursor: pointer;
+            transition: transform 0.1s;
+            box-shadow: 0 4px 0 #8BC34A;
+        }
+        .option-btn:active { transform: translateY(4px); box-shadow: 0 0 0 #8BC34A; }
+        
+        /* 闖關模式的狀態 */
+        .option-btn.correct { background-color: #C8E6C9; border-color: #4CAF50; color: #2E7D32; box-shadow: none; transform: translateY(4px); }
+        .option-btn.wrong { background-color: #FFCDD2; border-color: #E57373; color: #C62828; animation: shake 0.4s ease; }
+        
+        /* 測驗模式的選取狀態 */
+        .option-btn.selected-exam { background-color: #4DB6AC; color: white; border-color: #00897B; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); transform: translateY(4px); }
+
+        /* 句子糾錯區 */
+        .sentence-container {
+            font-size: 2rem;
+            line-height: 2.2;
+            background-color: #E8F5E9;
+            border-radius: 16px;
+            /* 右側 padding 加大至 4.5rem，避免文字被右上角按鈕遮擋 */
+            padding: 2.5rem 4.5rem 2.5rem 2rem;
+            cursor: default;
+            position: relative;
+            text-align: justify;
+        }
+        .sentence-char {
+            cursor: pointer;
+            padding: 0.25em 0.1em;
+            margin: 0 0.05em;
+            border-radius: 8px;
+            transition: background-color 0.2s;
+            display: inline-block;
+            -webkit-tap-highlight-color: rgba(0,0,0,0);
+        }
+        .sentence-char:hover { background-color: #C8E6C9; }
+        
+        /* 測驗模式：編輯中/已修改 */
+        .sentence-char.exam-editing { background-color: #FFECB3; border-bottom: 3px solid #FF9800; }
+        .sentence-char.exam-modified { color: #1565C0; font-weight: bold; text-decoration: underline; }
+
+        /* 闖關模式特效 */
+        .sentence-char.flash-green-shake { color: #4CAF50; animation: flash-green-shake-anim 0.8s ease; }
+        .sentence-char.selected-error { color: #D32F2F; font-weight: bold; background-color: #FFEBEE; border: 2px dashed #EF5350; }
+
+        /* 修正視窗 - 優化位置，避免遮擋 */
+        #correction-modal, #settings-modal {
+            display: none;
+            background: white;
+            border: 4px solid #4DB6AC;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 0 0 100vw rgba(0,0,0,0.5);
+            z-index: 1000;
+            width: 90%;
+            max-width: 450px;
+            position: fixed;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        #correction-modal { top: 25%; }
+        #settings-modal { top: 50%; }
+
+        #correction-input {
+            width: 100%;
+            font-size: 3rem;
+            text-align: center;
+            border: 3px solid #B2DFDB;
+            border-radius: 12px;
+            padding: 0.5rem;
+            margin-bottom: 1.5rem;
+            background-color: #FAFAFA;
+        }
+        #correction-input:focus { outline: none; border-color: #26A69A; background-color: #fff; }
+
+        /* 右上角關閉按鈕 */
+        .close-modal-x {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 2rem;
+            color: #aaa;
+            cursor: pointer;
+            font-weight: bold;
+            line-height: 1;
+        }
+        .close-modal-x:hover { color: #666; }
+
+        /* 結算畫面 */
+        #errorReviewContainer {
+            width: 100%;
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background-color: #F8F8F8;
+            border-radius: 16px;
+            max-height: 40vh;
+            overflow-y: auto;
+            text-align: left;
+            -webkit-overflow-scrolling: touch;
+        }
+        .badge {
+            display: inline-block; padding: 0.3em 0.6em; font-size: 0.9rem; font-weight: 700;
+            border-radius: 0.4rem; margin-right: 0.5rem; color: white;
+        }
+        .badge-success { background-color: #4CAF50; }
+        .badge-danger { background-color: #EF5350; }
+        .badge-gray { background-color: #90A4AE; }
+
+        /* 訊息彈窗 */
+        #message-box {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.6); z-index: 2000;
+            justify-content: center; align-items: center; padding: 20px;
+        }
+        #message-box.active { display: flex; }
+        #message-box .card { width: 100%; max-width: 400px; text-align: center; padding: 2.5rem; }
+
+        .info-text { font-size: 1.2rem; font-weight: bold; color: #757575; }
+
+        /* 動畫 */
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+        @keyframes flash-green-shake-anim {
+            0% { transform: translateX(0); color: inherit; } 10% { color: #4CAF50; }
+            25% { transform: translateX(-8px); color: #4CAF50; } 75% { transform: translateX(8px); color: #4CAF50; }
+            100% { transform: translateX(0); color: inherit; }
+        }
+
+        /* PDF 輸出 */
+        .pdf-mode .no-print { display: none !important; }
+        .pdf-mode {
+            background: white !important; box-shadow: none !important; border: 2px solid #4DB6AC !important;
+            width: 100% !important; max-width: 100% !important; max-height: none !important;
+        }
+        .pdf-report-container { font-family: 'Iansui', '標楷體', sans-serif; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+    <!-- 1. 首頁 (Home) -->
+    <div id="mainScreen" class="screen active">
+        <div class="card text-center flex flex-col justify-center h-full max-h-[900px] relative">
+            <!-- 設定按鈕 -->
+            <button onclick="openSettingsModal()" class="absolute top-6 right-6 text-gray-400 hover:text-teal-600 transition" title="設定">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+            </button>
+
+            <h1 class="text-5xl font-bold mb-4 text-teal-700 tracking-wider">錯字搜查隊</h1>
+            <div class="bg-teal-50 rounded-xl p-4 mb-6 border border-teal-100">
+                <!-- 加上 ID 方便讀取範圍 -->
+                <h2 id="gameRangeDisplay" class="text-xl font-bold text-gray-700">範圍：龍騰一下第三課</h2>
+            </div>
+
+            <!-- 姓名輸入 -->
+            <div class="mb-6 w-full max-w-md mx-auto">
+                <label for="studentName" class="block text-gray-700 font-bold mb-2 text-xl text-left pl-2">請輸入姓名：</label>
+                <input type="text" id="studentName" class="w-full p-3 border-2 border-teal-300 rounded-xl focus:outline-none focus:border-teal-500 text-2xl text-center bg-gray-50 shadow-inner" placeholder="例如：王小明">
+            </div>
+
+            <!-- 遊戲機制選擇 -->
+            <div class="mb-10 w-full max-w-md mx-auto text-left">
+                <p class="text-gray-700 font-bold mb-2 text-lg pl-2">選擇遊戲模式：</p>
+                <div class="radio-group">
+                    <label class="radio-label checked" onclick="selectMechanic('challenge')">
+                        <input type="radio" name="mechanic" value="challenge" checked>
+                        <div class="text-2xl mb-1">🏰</div>
+                        闖關挑戰<br>
+                        <span class="text-xs font-normal opacity-80">(三顆心/即時回饋)</span>
+                    </label>
+                    <label class="radio-label" onclick="selectMechanic('exam')">
+                        <input type="radio" name="mechanic" value="exam">
+                        <div class="text-2xl mb-1">📝</div>
+                        試卷測驗<br>
+                        <span class="text-xs font-normal opacity-80">(無生命/最後交卷)</span>
+                    </label>
+                </div>
+            </div>
+
+            <button onclick="checkNameAndStart()" class="btn btn-primary w-full max-w-md mx-auto text-2xl shadow-lg">進入選單</button>
+        </div>
+    </div>
+
+    <!-- 設定視窗 (Settings Modal) -->
+    <div id="settings-modal">
+        <span class="close-modal-x" onclick="closeSettingsModal()">✕</span>
+        <h2 class="text-2xl font-bold text-gray-700 mb-4 text-center">⚙️ 設定</h2>
+        
+        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6 text-left">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-lg font-bold text-gray-600">🔊 語音設定</span>
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" id="enableSpeech" class="form-checkbox h-5 w-5 text-teal-600 rounded" checked onchange="updateVoiceSettings()">
+                    <span class="ml-2 text-gray-700 font-bold">開啟報讀</span>
+                </label>
+            </div>
+            <select id="voiceSelect" class="select-style w-full border-gray-300 mb-3 h-10 py-1 text-base"></select>
+            <div class="flex items-center bg-gray-100 rounded-lg p-2 mb-3">
+                <span class="text-sm font-bold text-gray-500 mr-2">語速</span>
+                <input type="range" id="rateRange" min="0.5" max="2.0" step="0.1" value="1.0" class="flex-1 accent-teal-600" onchange="updateRateLabel()">
+                <span id="rateLabel" class="text-sm font-bold text-gray-500 ml-2 w-8">1.0</span>
+            </div>
+            <button onclick="testVoice('這是新的朗讀語音')" class="btn btn-sm btn-secondary w-full">🔊 試聽: 這是新的朗讀語音</button>
+        </div>
+
+        <button onclick="closeSettingsModal()" class="btn btn-primary w-full text-lg">完成</button>
+    </div>
+
+    <!-- 2. 主選單 (Menu) -->
+    <div id="modeScreen" class="screen">
+        <div class="card text-center flex flex-col justify-center">
+            <h2 class="text-3xl font-bold mb-2 text-gray-700">選擇題型</h2>
+            <p id="welcomeMsg" class="text-xl text-teal-600 font-bold mb-6"></p>
+            <div id="modeDescription" class="mb-6 p-3 bg-yellow-50 text-yellow-800 rounded-lg font-bold"></div>
+            
+            <div class="grid grid-cols-1 gap-6 w-full max-w-md mx-auto">
+                <button onclick="selectGameType('word')" class="btn btn-primary text-2xl py-6 rounded-2xl shadow-md border-b-4 border-teal-800">
+                    📖 詞語填空
+                </button>
+                <button onclick="selectGameType('sentence')" class="btn btn-primary text-2xl py-6 rounded-2xl shadow-md border-b-4 border-teal-800">
+                    ✍️ 句子改錯
+                </button>
+            </div>
+            
+            <div class="mt-12 pt-6 border-t-2 border-gray-100">
+                 <button onclick="showScreen('mainScreen')" class="btn btn-secondary w-full max-w-md">回到首頁</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 遊戲進行中 (Game) -->
+    <div id="gameScreen" class="screen">
+        <div class="card relative flex flex-col h-full">
+            <!-- 頂部資訊 -->
+            <div id="gameHeader">
+                <div id="livesContainer"><span>❤️</span><span>❤️</span><span>❤️</span></div>
+                <h2 id="gameTitle" class="truncate px-2"></h2>
+                <div class="menu-btn-container">
+                    <button onclick="showScreen('modeScreen')" class="btn btn-sm btn-secondary font-bold">🏠 選單</button>
+                </div>
+            </div>
+            
+            <p id="centralInstruction" class="text-center"></p>
+
+            <div class="flex justify-between items-center mb-4 px-2">
+                <div id="progressContainer" class="info-text">1 / 10</div>
+                <div id="timerContainer" class="info-text">00:00</div>
+            </div>
+
+            <!-- 遊戲區域 -->
+            <div class="flex-1 flex flex-col justify-center items-center w-full">
+                <!-- 詞語模式 -->
+                <div id="wordModeContainer" style="display: none; width: 100%;">
+                    <div id="wordContainer" class="word-container"></div>
+                    <div id="optionsGrid" class="options-grid"></div>
+                </div>
+
+                <!-- 句子模式 -->
+                <div id="sentenceModeContainer" style="display: none; width: 100%;">
+                    <div id="sentenceContainer" class="sentence-container"></div>
+                </div>
+            </div>
+
+            <!-- 修正輸入視窗 -->
+            <div id="correction-modal">
+                <span class="close-modal-x" onclick="closeCorrectionModal()">✕</span>
+                <h3 class="text-xl font-bold text-gray-700 mb-4 text-center">請輸入正確的字</h3>
+                <input type="text" id="correction-input" maxlength="1" autocomplete="off">
+                <div class="flex gap-4">
+                    <button id="correction-confirm" class="btn btn-primary flex-1 text-lg py-3">確定</button>
+                </div>
+            </div>
+
+            <!-- 底部導航 (動態變更) -->
+            <div id="gameFooter" class="mt-auto pt-4 border-t flex space-x-3 justify-center">
+                <!-- 闖關模式按鈕 -->
+                <div id="challengeControls" class="w-full flex gap-3 hidden">
+                    <button onclick="prevQuestion()" id="btnChallengePrev" class="btn btn-secondary flex-1">⬅️ 上一題</button>
+                    <button onclick="nextQuestion()" id="btnChallengeNext" class="btn btn-secondary flex-1">下一題 ➡️</button>
+                </div>
+                <!-- 測驗模式按鈕 -->
+                <div id="examControls" class="w-full flex gap-3 hidden">
+                    <button onclick="prevQuestion()" id="btnPrev" class="btn btn-secondary flex-1">⬅️ 上一題</button>
+                    <button onclick="nextQuestion()" id="btnNext" class="btn btn-secondary flex-1">下一題 ➡️</button>
+                    <button onclick="submitExam()" id="btnSubmit" class="btn btn-primary flex-1 hidden">交卷 📝</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. 結算畫面 (Results) -->
+    <div id="resultsScreen" class="screen">
+        <div class="card text-center">
+            <h2 id="resultsTitle" class="text-4xl font-bold text-green-700 mb-4">測驗結束</h2>
+            <p id="resultsName" class="text-2xl text-gray-800 font-bold mb-2"></p>
+
+            <div class="flex justify-center space-x-6 mb-6">
+                <p id="resultsTime" class="text-lg text-gray-600 bg-gray-100 px-3 py-1 rounded">時間：00:00</p>
+                <p id="resultsScore" class="text-lg text-red-600 font-bold bg-red-50 px-3 py-1 rounded">分數：0</p>
+            </div>
+            
+            <!-- 下載 -->
+            <div class="no-print bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6 text-left">
+                <h3 class="text-lg font-bold text-gray-700 mb-2">📄 下載成績報告：</h3>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <select id="downloadFormat" class="select-style flex-1 h-12 py-2">
+                        <option value="pdf">PDF (列印格式)</option>
+                        <option value="csv">CSV (Excel用)</option>
+                        <option value="txt">TXT (純文字)</option>
+                    </select>
+                    <button onclick="executeDownload()" class="btn btn-primary w-full sm:w-auto">📥 下載</button>
+                </div>
+            </div>
+
+            <h3 class="text-xl font-bold text-gray-700 mb-3 text-left">答題檢討：</h3>
+            <div id="errorReviewContainer" class="mb-6"></div>
+
+            <div class="mt-auto space-y-3 no-print">
+                <button id="reviewErrorsBtn" onclick="restartGame(true)" class="btn btn-danger w-full hidden">✍️ 錯題重做</button>
+                <div class="flex gap-3">
+                    <button onclick="restartGame(false)" class="btn btn-primary flex-1">再玩一次</button>
+                    <button onclick="showScreen('modeScreen')" class="btn btn-secondary flex-1">回到選單</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 訊息彈窗 -->
+    <div id="message-box">
+        <div class="card shadow-2xl">
+            <p id="message-box-text" class="text-2xl font-bold text-gray-700 mb-8 leading-relaxed"></p>
+            <div class="flex gap-4">
+                <button id="message-box-cancel" class="btn btn-secondary flex-1 hidden">取消</button>
+                <button id="message-box-ok" class="btn btn-primary flex-1 text-xl">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="fixed bottom-2 w-full text-center text-gray-500 text-sm pointer-events-none no-print">
+        由 <a href="https://www.facebook.com/se365" target="_blank" class="text-teal-600 pointer-events-auto font-bold hover:underline">特工365</a> 製作
+    </footer>
+
+    <script>
+        // --- 變數與設定 ---
+        const synth = window.speechSynthesis;
+        const speechUtterance = new SpeechSynthesisUtterance();
+        speechUtterance.lang = 'zh-TW'; 
+
+        // 題目資料 (由生成器替換)
+        const QUESTIONS_DB = {
+    word: [
+        { id: 'w1', q: "雨雪[]", options: ["菲", "霏", "扉"], a: "霏", full: "雨雪霏霏" },
+        { id: 'w2', q: "獲益[]淺", options: ["誹", "菲", "匪"], a: "匪", full: "獲益匪淺" },
+        { id: 'w3', q: "價值不[]", options: ["菲", "扉", "匪"], a: "菲", full: "價值不菲" },
+        { id: 'w4', q: "[]頁", options: ["霏", "扉", "緋"], a: "扉", full: "扉頁" },
+        { id: 'w5', q: "死不[]目", options: ["瞑", "暝", "冥"], a: "瞑", full: "死不瞑目" },
+        { id: 'w6', q: "[]僂", options: ["樞", "嫗", "傴"], a: "傴", full: "傴僂" },
+        { id: 'w7', q: "老[]能解", options: ["謳", "嫗", "嘔"], a: "嫗", full: "老嫗能解" },
+        { id: 'w8', q: "[]心瀝血", options: ["謳", "慪", "嘔"], a: "嘔", full: "嘔心瀝血" },
+        { id: 'w9', q: "中[]", options: ["樞", "嘔", "驅"], a: "樞", full: "中樞" },
+        { id: 'w10', q: "[]歌", options: ["嘔", "謳", "摳"], a: "謳", full: "謳歌" },
+        { id: 'w11', q: "刻[]", options: ["縷", "摟", "鏤"], a: "鏤", full: "刻鏤" },
+        { id: 'w12', q: "衣衫襤[]", options: ["縷", "鏤", "褸"], a: "褸", full: "衣衫襤褸" },
+        { id: 'w13', q: "千絲萬[]", options: ["縷", "褸", "鏤"], a: "縷", full: "千絲萬縷" },
+        { id: 'w14', q: "寒風凜[]", options: ["冽", "洌", "咧"], a: "冽", full: "寒風凜冽" },
+        { id: 'w15', q: "博[]", options: ["奕", "弈", "亦"], a: "弈", full: "博弈" },
+        { id: 'w16', q: "神采[]", options: ["奕奕", "亦亦", "弈弈"], a: "奕奕", full: "神采奕奕" },
+        { id: 'w17', q: "[]子", options: ["緋", "扉", "痱"], a: "痱", full: "痱子" },
+        { id: 'w18', q: "[]囉", options: ["嘍", "摟", "樓"], a: "嘍", full: "嘍囉" },
+        { id: 'w19', q: "骷[]", options: ["嘍", "摟", "髏"], a: "髏", full: "骷髏" },
+        { id: 'w20', q: "齜牙[]嘴", options: ["冽", "洌", "咧"], a: "咧", full: "齜牙咧嘴" }
+    ],
+    sentence: [
+        { id: 's1', q: "冬天時，窗外雨雪菲菲，讓人不想出門。", wrong: "菲", a: "霏", full: "冬天時，窗外雨雪霏霏，讓人不想出門。" },
+        { id: 's2', q: "聽完專家的講座，我感到獲益菲淺。", wrong: "菲", a: "匪", full: "聽完專家的講座，我感到獲益匪淺。" },
+        { id: 's3', q: "這件古董花瓶價值不匪，你要小心拿放。", wrong: "匪", a: "菲", full: "這件古董花瓶價值不菲，你要小心拿放。" },
+        { id: 's4', q: "他在書本的霏頁寫下了自己的名字。", wrong: "霏", a: "扉", full: "他在書本的扉頁寫下了自己的名字。" },
+        { id: 's5', q: "如果不抓到真兇，死者一定會死不暝目。", wrong: "暝", a: "瞑", full: "如果不抓到真兇，死者一定會死不瞑目。" },
+        { id: 's6', q: "這位老爺爺嘔僂著背，走路非常緩慢。", wrong: "嘔", a: "傴", full: "這位老爺爺傴僂著背，走路非常緩慢。" },
+        { id: 's7', q: "這篇報導寫得老謳能解，連小學生都看得懂。", wrong: "謳", a: "嫗", full: "這篇報導寫得老嫗能解，連小學生都看得懂。" },
+        { id: 's8', q: "這是作者謳心瀝血的作品，非常值得一讀。", wrong: "謳", a: "嘔", full: "這是作者嘔心瀝血的作品，非常值得一讀。" },
+        { id: 's9', q: "這項計畫涉及國家安全的中嘔，不能馬虎。", wrong: "嘔", a: "樞", full: "這項計畫涉及國家安全的中樞，不能馬虎。" },
+        { id: 's10', q: "人們聚在一起嘔歌，讚美這個偉大的時代。", wrong: "嘔", a: "謳", full: "人們聚在一起謳歌，讚美這個偉大的時代。" },
+        { id: 's11', q: "這座石雕刻摟得非常精細，栩栩如生。", wrong: "摟", a: "鏤", full: "這座石雕刻鏤得非常精細，栩栩如生。" },
+        { id: 's12', q: "災民們衣衫襤縷，急需社會大眾的援助。", wrong: "縷", a: "褸", full: "災民們衣衫襤褸，急需社會大眾的援助。" },
+        { id: 's13', q: "這件事跟許多人都有著千絲萬褸的聯繫。", wrong: "褸", a: "縷", full: "這件事跟許多人都有著千絲萬縷的聯繫。" },
+        { id: 's14', q: "清晨的寒風凜洌，路上行人都裹緊了大衣。", wrong: "洌", a: "冽", full: "清晨的寒風凜冽，路上行人都裹緊了大衣。" },
+        { id: 's15', q: "他在圍棋博奕中展現了過人的智慧。", wrong: "奕", a: "弈", full: "他在圍棋博弈中展現了過人的智慧。" },
+        // 修正 s16: 移除重複選項並確保邏輯統一
+        { id: 's16', q: "運動員們個個精神奕奕，神采弈弈。", wrong: "弈", a: "奕", full: "運動員們個個精神奕奕，神采奕奕。" },
+        { id: 's17', q: "夏天流汗後要擦乾，否則容易長扉子。", wrong: "扉", a: "痱", full: "夏天流汗後要擦乾，否則容易長痱子。" },
+        // 修正 s18: 確保錯字 "摟" 對應到答案 "嘍"
+        { id: 's18', q: "那群土匪帶著幾名嘍摟在山下徘徊。", wrong: "摟", a: "嘍", full: "那群土匪帶著幾名嘍囉在山下徘徊。" },
+        { id: 's19', q: "這部恐怖電影裡出現了許多陰森的骷摟。", wrong: "摟", a: "髏", full: "這部恐怖電影裡出現了許多陰森的骷髏。" },
+        { id: 's20', q: "他痛得齜牙冽嘴，看起來非常痛苦。", wrong: "冽", a: "咧", full: "他痛得齜牙咧嘴，看起來非常痛苦。" }
+    ]
+};
+
+        const gameState = {
+            studentName: '',
+            mechanic: 'challenge', // 'challenge' or 'exam'
+            gameType: 'word', // 'word' or 'sentence'
+            questions: [],
+            currentIndex: 0,
+            lives: 3,
+            startTime: null,
+            userAnswers: [], // For Exam Mode: [ { userAnswer: ... }, ... ]
+            results: [],     // For Challenge Mode: [ { isCorrect: bool, ... }, ... ]
+            isLocked: false,
+            enableSpeech: true,
+            currentSelectedSpan: null // 記錄當前正在編輯的 span
+        };
+
+        let timerInterval;
+
+        // --- 設定與初始化 ---
+        function openSettingsModal() {
+            document.getElementById('settings-modal').style.display = 'block';
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settings-modal').style.display = 'none';
+        }
+
+        function updateVoiceSettings() {
+            gameState.enableSpeech = document.getElementById('enableSpeech').checked;
+        }
+
+        function updateRateLabel() {
+            document.getElementById('rateLabel').textContent = document.getElementById('rateRange').value;
+        }
+
+        function testVoice(text) {
+            updateVoiceSettings(); // Ensure state is synced
+            speak(text);
+        }
+
+        // --- 初始化與導航 ---
+        function selectMechanic(mech) {
+            gameState.mechanic = mech;
+            document.querySelectorAll('.radio-label').forEach(el => el.classList.remove('checked'));
+            document.querySelector(`input[value="${mech}"]`).parentElement.classList.add('checked');
+        }
+
+        function checkNameAndStart() {
+            const name = document.getElementById('studentName').value.trim();
+            if (!name) { alertMsg("請先輸入姓名喔！"); return; }
+            gameState.studentName = name;
+            
+            // Sync initial settings
+            gameState.enableSpeech = document.getElementById('enableSpeech').checked;
+            
+            document.getElementById('welcomeMsg').textContent = `${name}同學，你好！`;
+            const mechText = gameState.mechanic === 'challenge' ? '🏰 闖關模式 (答錯扣血)' : '📝 測驗模式 (自由作答)';
+            document.getElementById('modeDescription').textContent = `目前模式：${mechText}`;
+            
+            showScreen('modeScreen');
+        }
+
+        function selectGameType(type) {
+            gameState.gameType = type;
+            restartGame();
+        }
+
+        function restartGame(isReview = false) {
+            // 準備題目
+            let qs = [];
+            if (isReview) {
+                // 錯題重做模式
+                const wrongIndices = [];
+                // 使用 finalReport 來準確判斷錯題 (包含 Challenge 和 Exam 模式)
+                if (gameState.finalReport) {
+                    gameState.finalReport.forEach((item, idx) => {
+                        if (!item.isCorrect) wrongIndices.push(idx);
+                    });
+                }
+                
+                if (wrongIndices.length === 0) { alertMsg("沒有錯題！"); return; }
+                qs = wrongIndices.map(i => gameState.questions[i]);
+            } else {
+                qs = [...QUESTIONS_DB[gameState.gameType]].sort(() => 0.5 - Math.random());
+            }
+
+            gameState.questions = qs;
+            gameState.currentIndex = 0;
+            gameState.lives = 3;
+            gameState.startTime = new Date();
+            gameState.isLocked = false;
+            
+            // 初始化狀態容器
+            if (gameState.mechanic === 'exam') {
+                gameState.userAnswers = new Array(qs.length).fill(null);
+            } else {
+                gameState.results = [];
+            }
+
+            showScreen('gameScreen');
+            updateUIForMechanic();
+            renderQuestion();
+            
+            clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function updateUIForMechanic() {
+            const isChallenge = gameState.mechanic === 'challenge';
+            
+            // Header
+            document.getElementById('livesContainer').style.visibility = isChallenge ? 'visible' : 'hidden';
+            updateLivesUI();
+
+            // Footer Controls
+            document.getElementById('challengeControls').classList.toggle('hidden', !isChallenge);
+            document.getElementById('examControls').classList.toggle('hidden', isChallenge);
+        }
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            window.scrollTo(0,0);
+        }
+
+        function updateTimer() {
+            const diff = Math.floor((new Date() - gameState.startTime) / 1000);
+            const m = String(Math.floor(diff/60)).padStart(2,'0');
+            const s = String(diff%60).padStart(2,'0');
+            document.getElementById('timerContainer').textContent = `${m}:${s}`;
+        }
+
+        // --- 渲染題目 ---
+        function renderQuestion() {
+            const total = gameState.questions.length;
+            const idx = gameState.currentIndex;
+            if (idx >= total) { finishGame(); return; }
+
+            const q = gameState.questions[idx];
+            document.getElementById('progressContainer').textContent = `${idx + 1} / ${total}`;
+            document.getElementById('gameTitle').textContent = gameState.gameType === 'word' ? '詞語填空' : '句子改錯';
+
+            // 指引文字
+            const instruction = document.getElementById('centralInstruction');
+            if (gameState.mechanic === 'exam') {
+                instruction.textContent = gameState.gameType === 'word' ? '請點選答案 (可修改)' : '請點選錯字並修正';
+                // 更新上一題/下一題按鈕狀態
+                document.getElementById('btnPrev').disabled = (idx === 0);
+                if (idx === total - 1) {
+                    document.getElementById('btnNext').classList.add('hidden');
+                    document.getElementById('btnSubmit').classList.remove('hidden');
+                } else {
+                    document.getElementById('btnNext').classList.remove('hidden');
+                    document.getElementById('btnSubmit').classList.add('hidden');
+                }
+            } else {
+                instruction.textContent = gameState.gameType === 'word' ? '請選擇正確答案' : '請找出錯字';
+                
+                // Challenge Mode Buttons Logic
+                const btnPrev = document.getElementById('btnChallengePrev');
+                const btnNext = document.getElementById('btnChallengeNext');
+                if (btnPrev) btnPrev.disabled = (idx === 0);
+                if (btnNext) {
+                    if (idx === total - 1) {
+                        btnNext.textContent = "結束 🏁";
+                        btnNext.onclick = () => finishGame();
+                    } else {
+                        btnNext.textContent = "下一題 ➡️";
+                        btnNext.onclick = () => nextQuestion();
+                    }
+                }
+            }
+
+            // 顯示區域切換
+            const wContainer = document.getElementById('wordModeContainer');
+            const sContainer = document.getElementById('sentenceModeContainer');
+            
+            if (gameState.gameType === 'word') {
+                wContainer.style.display = 'block';
+                sContainer.style.display = 'none';
+                renderWordQ(q);
+            } else {
+                wContainer.style.display = 'none';
+                sContainer.style.display = 'block';
+                renderSentenceQ(q);
+            }
+        }
+
+        function renderWordQ(q) {
+            const container = document.getElementById('wordContainer');
+            const grid = document.getElementById('optionsGrid');
+            
+            // 顯示題目 (考卷模式下若已答，顯示答案)
+            let ansDisplay = '';
+            if (gameState.mechanic === 'exam') {
+                const saved = gameState.userAnswers[gameState.currentIndex];
+                ansDisplay = saved ? `<span style="color:#26A69A">${saved.userAnswer}</span>` : '';
+            }
+            container.innerHTML = q.q.replace('[]', `<span class="word-placeholder">${ansDisplay}</span>`);
+            
+            // 語音按鈕
+            if (gameState.enableSpeech) {
+                const icon = document.createElement('span');
+                icon.className = 'speaker-icon';
+                icon.textContent = '🔊';
+                icon.onclick = (e) => { e.stopPropagation(); speak(q.full); };
+                container.appendChild(icon);
+            }
+
+            // 選項
+            grid.innerHTML = '';
+            q.options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.textContent = opt;
+                
+                if (gameState.mechanic === 'exam') {
+                    const saved = gameState.userAnswers[gameState.currentIndex];
+                    if (saved && saved.userAnswer === opt) btn.classList.add('selected-exam');
+                    btn.onclick = () => {
+                        gameState.userAnswers[gameState.currentIndex] = { questionId: q.id, userAnswer: opt };
+                        renderQuestion();
+                    };
+                } else {
+                    btn.onclick = () => handleChallengeWordSelect(q, opt, btn);
+                }
+                grid.appendChild(btn);
+            });
+        }
+
+        function renderSentenceQ(q) {
+            const container = document.getElementById('sentenceContainer');
+            container.innerHTML = '';
+
+            // 語音
+            if (gameState.enableSpeech) {
+                const icon = document.createElement('span');
+                icon.className = 'speaker-icon';
+                icon.textContent = '🔊';
+                icon.onclick = (e) => { e.stopPropagation(); speak(q.full); };
+                container.appendChild(icon);
+            }
+
+            // 拆字
+            q.q.split('').forEach((char, charIdx) => {
+                const span = document.createElement('span');
+                span.className = 'sentence-char';
+                span.textContent = char;
+
+                if (gameState.mechanic === 'exam') {
+                    const saved = gameState.userAnswers[gameState.currentIndex];
+                    // 如果這題有被修改過
+                    if (saved && saved.charIndex === charIdx) {
+                        span.textContent = saved.userAnswer;
+                        span.classList.add('exam-modified');
+                    }
+                    span.onclick = () => openCorrectionModal(q, char, charIdx, span);
+                } else {
+                    // 闖關模式
+                    span.onclick = () => handleChallengeSentenceClick(q, char, charIdx, span);
+                }
+                container.appendChild(span);
+            });
+        }
+
+        // --- 闖關模式邏輯 (Challenge Logic) ---
+        function handleChallengeWordSelect(q, opt, btn) {
+            if (gameState.isLocked) return;
+            
+            if (opt === q.a) {
+                // 答對
+                gameState.isLocked = true;
+                btn.classList.add('correct');
+                playSound('correct');
+                
+                // 自動填入正確答案 (Visual Update)
+                const placeholder = document.querySelector('.word-placeholder');
+                if (placeholder) {
+                    placeholder.textContent = opt;
+                    placeholder.style.color = '#4CAF50';
+                    placeholder.style.borderBottom = 'none';
+                }
+                
+                // 紀錄結果
+                if (!gameState.results[gameState.currentIndex]) {
+                    gameState.results[gameState.currentIndex] = { question: q, isCorrect: true };
+                }
+                
+                // 報讀後跳轉
+                if (gameState.enableSpeech) {
+                    speak(q.full, () => setTimeout(nextQuestionChallenge, 500));
+                } else {
+                    setTimeout(nextQuestionChallenge, 1500);
+                }
+            } else {
+                // 答錯
+                btn.classList.add('wrong');
+                playSound('wrong');
+                loseLife();
+                
+                // 紀錄錯誤 (只記第一次錯)
+                if (!gameState.results[gameState.currentIndex]) {
+                    gameState.results[gameState.currentIndex] = { question: q, isCorrect: false, wrongAnswer: opt };
+                }
+                
+                setTimeout(() => btn.classList.remove('wrong'), 500);
+            }
+        }
+
+        function handleChallengeSentenceClick(q, char, idx, span) {
+            if (gameState.isLocked) return;
+
+            if (char === q.wrong) {
+                // 點對錯字，開啟修正
+                span.classList.add('selected-error');
+                playSound('correct');
+                openCorrectionModal(q, char, idx, span);
+            } else {
+                // 點錯字了 (點到沒錯的字)
+                span.classList.add('flash-green-shake');
+                playSound('wrong');
+                loseLife();
+                
+                if (!gameState.results[gameState.currentIndex]) {
+                    gameState.results[gameState.currentIndex] = { question: q, isCorrect: false, wrongAnswer: '點錯位置' };
+                }
+                
+                setTimeout(() => span.classList.remove('flash-green-shake'), 800);
+            }
+        }
+
+        function nextQuestionChallenge() {
+            gameState.currentIndex++;
+            gameState.isLocked = false;
+            renderQuestion();
+        }
+
+        function loseLife() {
+            gameState.lives--;
+            updateLivesUI();
+            if (gameState.lives <= 0) {
+                alertMsg("愛心用完了！挑戰失敗！", () => finishGame());
+            }
+        }
+
+        function skipQuestion() {
+            if (gameState.isLocked) return;
+            const q = gameState.questions[gameState.currentIndex];
+            // 紀錄跳過
+            if (!gameState.results[gameState.currentIndex]) {
+                gameState.results[gameState.currentIndex] = { question: q, isCorrect: false, wrongAnswer: '(跳過)' };
+            }
+            document.getElementById('correction-modal').style.display = 'none';
+            nextQuestionChallenge();
+        }
+
+        // --- 測驗模式邏輯 (Exam Logic) ---
+        function handleExamWordSelect(q, opt) {
+            // 只是選取，不判斷對錯
+            gameState.userAnswers[gameState.currentIndex] = {
+                questionId: q.id,
+                userAnswer: opt
+            };
+            renderQuestion(); // 重繪以顯示選取狀態
+        }
+
+        function prevQuestion() {
+            if (gameState.currentIndex > 0) {
+                gameState.currentIndex--;
+                renderQuestion();
+            }
+        }
+
+        function nextQuestion() {
+            if (gameState.currentIndex < gameState.questions.length - 1) {
+                gameState.currentIndex++;
+                renderQuestion();
+            }
+        }
+
+        function submitExam() {
+            // 檢查是否還有未答
+            const unanswered = gameState.userAnswers.filter(a => a === null).length;
+            const msg = unanswered > 0 ? `還有 ${unanswered} 題沒寫，確定交卷？` : "確定要交卷了嗎？";
+            
+            showConfirmBox(msg, () => {
+                finishGame();
+            });
+        }
+
+        // --- 通用修正視窗邏輯 ---
+        function openCorrectionModal(q, originalChar, idx, spanElement) {
+            gameState.currentSelectedSpan = spanElement; // 記錄當前 span 以便關閉時移除樣式
+            const modal = document.getElementById('correction-modal');
+            const input = document.getElementById('correction-input');
+            const confirmBtn = document.getElementById('correction-confirm');
+
+            modal.style.display = 'block';
+            input.value = '';
+            input.focus();
+
+            // 設定確定按鈕
+            confirmBtn.onclick = () => {
+                const val = input.value.trim();
+                if (!val) return;
+
+                if (gameState.mechanic === 'challenge') {
+                    // 闖關：立即判斷
+                    if (val === q.a) {
+                        playSound('correct');
+                        spanElement.textContent = val;
+                        spanElement.style.color = '#4CAF50';
+                        spanElement.classList.remove('selected-error');
+                        modal.style.display = 'none';
+                        
+                        // 補登正確
+                        const existingRes = gameState.results[gameState.currentIndex];
+                        if (existingRes) {
+                            existingRes.isCorrect = true; // 修正之前可能的錯誤紀錄? 或者就算對?
+                            // 簡單起見，如果最後答對就算這題過關，但分數可能已因扣血減少
+                        } else {
+                            gameState.results[gameState.currentIndex] = { question: q, isCorrect: true };
+                        }
+                        
+                        // 報讀完整句子後跳轉
+                        if (gameState.enableSpeech) {
+                            speak(q.full, () => setTimeout(nextQuestionChallenge, 500));
+                        } else {
+                            setTimeout(nextQuestionChallenge, 1500);
+                        }
+                    } else {
+                        playSound('wrong');
+                        input.style.animation = 'shake 0.5s ease';
+                        setTimeout(()=>input.style.animation='', 500);
+                        loseLife();
+                        if (!gameState.results[gameState.currentIndex]) {
+                            gameState.results[gameState.currentIndex] = { question: q, isCorrect: false, wrongAnswer: val };
+                        }
+                    }
+                } else {
+                    // 測驗：儲存修改
+                    gameState.userAnswers[gameState.currentIndex] = {
+                        questionId: q.id,
+                        userAnswer: val,
+                        charIndex: idx
+                    };
+                    modal.style.display = 'none';
+                    renderQuestion(); // 重繪顯示修改字
+                }
+            };
+        }
+
+        // 關閉視窗 (右上角 X 或 取消按鈕)
+        function closeCorrectionModal() {
+            document.getElementById('correction-modal').style.display = 'none';
+            // 如果是在闖關模式，且是按 X 關閉，則移除選取樣式，讓使用者可以重新選擇
+            if (gameState.currentSelectedSpan) {
+                gameState.currentSelectedSpan.classList.remove('exam-editing');
+                gameState.currentSelectedSpan.classList.remove('selected-error');
+            }
+        }
+
+        // 輔助函數：獲取範圍文字
+        function getRangeText() {
+            const el = document.getElementById('gameRangeDisplay');
+            return el ? el.textContent.replace('範圍：', '').replace('範圍:', '').trim() : '康軒四上第一課';
+        }
+
+        // --- 結算與通用功能 ---
+        function finishGame() {
+            clearInterval(timerInterval);
+            showScreen('resultsScreen');
+            document.getElementById('correction-modal').style.display = 'none';
+
+            let correctCount = 0;
+            const total = gameState.questions.length;
+            const reviewContainer = document.getElementById('errorReviewContainer');
+            reviewContainer.innerHTML = '';
+
+            // 整合資料源：闖關看 results, 測驗看 userAnswers
+            // 我們統一生成一個 reportData 陣列方便顯示
+            const reportData = gameState.questions.map((q, idx) => {
+                let isCorrect = false;
+                let userVal = '未答';
+                
+                if (gameState.mechanic === 'challenge') {
+                    const res = gameState.results[idx]; // 注意：results 是 sparse array 還是 push based?
+                    // 我們在闖關時是用 index 存的，所以可以直接取
+                    if (res && res.isCorrect) {
+                        isCorrect = true;
+                        userVal = q.a; // 或 '正確'
+                    } else {
+                        userVal = res ? res.wrongAnswer : '未完成';
+                    }
+                } else {
+                    const ans = gameState.userAnswers[idx];
+                    if (ans) {
+                        userVal = ans.userAnswer;
+                        // 判斷對錯
+                        if (gameState.gameType === 'word') {
+                            isCorrect = (ans.userAnswer === q.a);
+                        } else {
+                            // 句子題：必須修改正確的字(val) 且 修改的是正確的位置(charIndex)
+                            // 這裡要找原始題目中錯字的位置
+                            // 簡單比對：題目 q.q 中錯字的位置 indexof q.wrong
+                            // 但若有多個相同字... 我們的題目結構不夠嚴謹去存 index，
+                            // 不過 handleExamWordSelect 存了 charIndex。
+                            // 簡單邏輯：只要改成了 q.a 就算對 (比較寬鬆)
+                            // 嚴謹邏輯：ans.userAnswer === q.a AND q.q[ans.charIndex] === q.wrong
+                            const wrongCharInQ = q.q[ans.charIndex];
+                            isCorrect = (ans.userAnswer === q.a && wrongCharInQ === q.wrong);
+                        }
+                    }
+                }
+                
+                if (isCorrect) correctCount++;
+                return { q, isCorrect, userVal };
+            });
+
+            // 更新 UI
+            document.getElementById('resultsName').textContent = `姓名：${gameState.studentName}`;
+            document.getElementById('resultsScore').textContent = `分數：${Math.round((correctCount/total)*100)} 分 (${correctCount} / ${total})`;
+            document.getElementById('resultsTime').textContent = "時間：" + document.getElementById('timerContainer').textContent;
+
+            const title = document.getElementById('resultsTitle');
+            if (correctCount === total) {
+                title.textContent = "太厲害了！全對！";
+                title.className = "text-4xl font-bold text-green-600 mb-4";
+            } else {
+                title.textContent = "測驗結束，再接再厲！";
+                title.className = "text-4xl font-bold text-gray-700 mb-4";
+            }
+
+            // 產生檢討列表
+            if (correctCount === total) {
+                reviewContainer.innerHTML = '<div class="text-center text-gray-500 py-4">完美過關，沒有錯題！</div>';
+                document.getElementById('reviewErrorsBtn').classList.add('hidden');
+            } else {
+                document.getElementById('reviewErrorsBtn').classList.remove('hidden');
+                reportData.forEach((item, idx) => {
+                    if (!item.isCorrect) {
+                        const div = document.createElement('div');
+                        div.className = 'border-b border-gray-200 py-3';
+                        const badge = `<span class="badge badge-danger">錯</span>`;
+                        
+                        let context = '';
+                        if (gameState.gameType === 'word') {
+                            context = item.q.q;
+                        } else {
+                            context = item.q.q; // 句子題顯示原句
+                        }
+
+                        div.innerHTML = `
+                            <div class="flex items-start">
+                                <span class="text-gray-500 mr-2">${idx+1}.</span>
+                                <div class="flex-1">
+                                    <div class="mb-1 text-lg">${badge} ${context}</div>
+                                    <div class="text-gray-600 text-sm">
+                                        你的答案：<span class="text-red-500 font-bold">${item.userVal}</span>
+                                        <span class="mx-2">|</span>
+                                        正解：<span class="text-green-600 font-bold">${item.q.a}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        reviewContainer.appendChild(div);
+                    }
+                });
+            }
+            
+            // 儲存報告資料供下載用
+            gameState.finalReport = reportData;
+        }
+
+        // --- 輔助功能 ---
+        function updateLivesUI() {
+            const spans = document.getElementById('livesContainer').children;
+            for(let i=0; i<3; i++) {
+                spans[i].textContent = i < gameState.lives ? '❤️' : '💔';
+                spans[i].style.opacity = i < gameState.lives ? '1' : '0.5';
+            }
+        }
+
+        function alertMsg(msg, callback) {
+            const box = document.getElementById('message-box');
+            const txt = document.getElementById('message-box-text');
+            const okBtn = document.getElementById('message-box-ok');
+            const cancelBtn = document.getElementById('message-box-cancel');
+            
+            txt.textContent = msg;
+            cancelBtn.classList.add('hidden');
+            okBtn.onclick = () => {
+                box.classList.remove('active');
+                if (callback) callback();
+            };
+            box.classList.add('active');
+        }
+
+        function showConfirmBox(msg, onConfirm) {
+            const box = document.getElementById('message-box');
+            const txt = document.getElementById('message-box-text');
+            const okBtn = document.getElementById('message-box-ok');
+            const cancelBtn = document.getElementById('message-box-cancel');
+            
+            txt.textContent = msg;
+            cancelBtn.classList.remove('hidden');
+            
+            okBtn.onclick = () => {
+                box.classList.remove('active');
+                onConfirm();
+            };
+            cancelBtn.onclick = () => {
+                box.classList.remove('active');
+            };
+            box.classList.add('active');
+        }
+
+        function playSound(type) {
+            // 這裡可以加入音效檔的播放邏輯
+            // console.log("Play sound:", type);
+        }
+
+        function speak(text, callback = null) {
+            if (!gameState.enableSpeech) {
+                if (callback) setTimeout(callback, 1000);
+                return;
+            }
+            if (synth.speaking) synth.cancel();
+            
+            speechUtterance.text = text;
+            speechUtterance.rate = parseFloat(document.getElementById('rateRange').value);
+            const vName = document.getElementById('voiceSelect').value;
+            const v = synth.getVoices().find(voice => voice.name === vName);
+            if(v) speechUtterance.voice = v;
+            
+            speechUtterance.onend = () => {
+                if (callback) callback();
+                speechUtterance.onend = null;
+            };
+            
+            synth.speak(speechUtterance);
+        }
+
+        // 語音初始化
+        function initVoice() {
+            const voices = synth.getVoices().filter(v => v.lang.startsWith('zh'));
+            const sel = document.getElementById('voiceSelect');
+            sel.innerHTML = '';
+            if (voices.length === 0) {
+                sel.innerHTML = '<option value="">預設語音</option>';
+            } else {
+                voices.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v.name;
+                    opt.textContent = v.name;
+                    sel.appendChild(opt);
+                });
+            }
+        }
+        speechSynthesis.onvoiceschanged = initVoice;
+        window.onload = () => { setTimeout(initVoice, 500); };
+
+        // --- 下載功能 ---
+        function executeDownload() {
+            const format = document.getElementById('downloadFormat').value;
+            if (!gameState.finalReport) return;
+            
+            if (format === 'csv') downloadCSV();
+            else if (format === 'txt') downloadTXT();
+            else if (format === 'pdf') downloadPDF();
+        }
+
+        function downloadCSV() {
+            let content = "\uFEFF姓名,範圍,分數,題目,作答,正解,結果\n";
+            const range = getRangeText();
+            const scoreText = document.getElementById('resultsScore').textContent.replace('分數：', '').trim();
+            content += `${gameState.studentName},${range},${scoreText},,,,\n`;
+            
+            gameState.finalReport.forEach((r, i) => {
+                const qText = `"${r.q.q.replace(/"/g, '""')}"`;
+                content += `${gameState.studentName},${range},,${qText},${r.userVal},${r.q.a},${r.isCorrect?'O':'X'}\n`;
+            });
+            
+            saveFile(content, 'csv', 'text/csv');
+        }
+
+        function downloadTXT() {
+            let content = `錯字搜查隊成績單\n姓名：${gameState.studentName}\n範圍：${getRangeText()}\n${document.getElementById('resultsScore').textContent}\n\n`;
+            gameState.finalReport.forEach((r, i) => {
+                content += `${i+1}. ${r.q.q}\n   作答：${r.userVal} | 正解：${r.q.a} [${r.isCorrect?'O':'X'}]\n\n`;
+            });
+            saveFile(content, 'txt', 'text/plain');
+        }
+
+        function downloadPDF() {
+            const element = document.createElement('div');
+            element.className = 'pdf-report-container p-8 bg-white';
+            element.innerHTML = `
+                <h1 class="text-3xl font-bold text-center mb-4">錯字搜查隊成績單</h1>
+                <div class="mb-4 text-xl border-b pb-2">
+                    <p>姓名：<b>${gameState.studentName}</b></p>
+                    <p>範圍：<b>${getRangeText()}</b></p>
+                    <p><b>${document.getElementById('resultsScore').textContent}</b></p>
+                    <p>模式：${gameState.mechanic === 'challenge' ? '闖關挑戰' : '試卷測驗'}</p>
+                </div>
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 border-b-2 border-gray-300">
+                            <th class="p-2">#</th>
+                            <th class="p-2">題目</th>
+                            <th class="p-2">作答</th>
+                            <th class="p-2">正解</th>
+                            <th class="p-2">結果</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${gameState.finalReport.map((r, i) => `
+                            <tr class="border-b">
+                                <td class="p-2">${i+1}</td>
+                                <td class="p-2">${r.q.q}</td>
+                                <td class="p-2 ${r.isCorrect?'text-green-600':'text-red-600'}">${r.userVal}</td>
+                                <td class="p-2">${r.q.a}</td>
+                                <td class="p-2 font-bold">${r.isCorrect?'O':'X'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            html2pdf().from(element).set({
+                margin: 10,
+                filename: `錯字搜查隊_${gameState.studentName}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            }).save();
+        }
+
+        function saveFile(content, ext, mime) {
+            const blob = new Blob([content], {type: mime});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `錯字搜查隊_${gameState.studentName}.${ext}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+    </script>
+</body>
+</html>
+    
